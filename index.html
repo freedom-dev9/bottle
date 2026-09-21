@@ -1,43 +1,558 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SForm Dashboard</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 24px; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
-    th { background: #f4f4f4; }
-    #status { margin-bottom: 12px; color: #555; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SForm Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink: #16211e;
+    --muted: #5b6a66;
+    --paper: #eef2f0;
+    --surface: #ffffff;
+    --line: #d5ddda;
+    --soda: #0f7a63;
+    --water: #2b6fd1;
+    --warn: #b8690f;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e6edea;
+      --muted: #9aaba6;
+      --paper: #0f1614;
+      --surface: #172220;
+      --line: #2a3a36;
+      --soda: #3fc7a6;
+      --water: #6ea4f2;
+      --warn: #e0a04a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 12px; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Sans Thai', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 20px 20px 48px; }
+
+  header.top {
+    display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between;
+    gap: 12px; padding-bottom: 16px; border-bottom: 2px solid var(--ink);
+  }
+  h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  .sub { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .top-actions { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  button, select, input {
+    font: inherit; color: inherit;
+  }
+  button.btn {
+    background: var(--ink); color: var(--paper); border: 0; border-radius: var(--radius);
+    padding: 8px 16px; cursor: pointer; font-weight: 500;
+  }
+  button.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.btn:disabled { opacity: .5; cursor: wait; }
+  :focus-visible { outline: 3px solid var(--soda); outline-offset: 2px; }
+
+  /* load bar */
+  .loadbar {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 10px 14px; margin-top: 16px; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .loadbar strong { font-weight: 500; }
+  .loadbar .cnt { color: var(--muted); }
+  .loadbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hint {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px;
+    padding: 10px 14px; border: 1px solid var(--warn); border-radius: var(--radius);
+    background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  }
+
+  /* filters */
+  .filters {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin: 16px 0 20px; align-items: end;
+  }
+  .filters label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  .filters select, .filters input {
+    width: 100%; background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 7px 10px; min-height: 38px;
+  }
+
+  /* ledger: the one memorable element */
+  .ledger { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .ledger-head {
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+  }
+  .ledger-head strong { font-size: 16px; }
+  .ledger-head span { color: var(--muted); font-size: 14px; }
+  .ledger table { width: 100%; border-collapse: collapse; }
+  .ledger th, .ledger td { padding: 10px 18px; text-align: left; }
+  .ledger thead th { font-weight: 500; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .ledger thead th.soda { color: var(--soda); border-bottom: 3px solid var(--soda); }
+  .ledger thead th.water { color: var(--water); border-bottom: 3px solid var(--water); }
+  .ledger tbody th { font-weight: 400; color: var(--muted); width: 26%; }
+  .ledger tbody tr + tr > * { border-top: 1px solid var(--line); }
+  .ledger td .n { font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .ledger td .bar { height: 5px; border-radius: 3px; margin-top: 4px; min-width: 2px; }
+  .ledger td.soda .bar { background: var(--soda); }
+  .ledger td.water .bar { background: var(--water); }
+  .ledger tr.rate td .n { color: var(--warn); }
+  .ledger tr.rate .bar { display: none; }
+  .ledger tr.rate th { color: var(--ink); }
+
+  /* charts */
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 20px 0; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+  .chartbox { position: relative; height: 300px; }
+
+  /* table */
+  .tablepanel { padding: 0; overflow: hidden; }
+  .tablepanel .bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); gap: 12px; flex-wrap: wrap; }
+  .tablepanel h2 { margin: 0; }
+  .scroll { overflow: auto; max-height: 560px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.data th, table.data td { padding: 8px 12px; white-space: nowrap; text-align: left; border-bottom: 1px solid var(--line); }
+  table.data th { position: sticky; top: 0; background: var(--surface); cursor: pointer; user-select: none; font-weight: 500; z-index: 1; box-shadow: 0 1px 0 var(--line); }
+  table.data th[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
+  table.data th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
+  table.data td.num, table.data th.num { text-align: right; }
+  table.data tbody tr:hover { background: color-mix(in srgb, var(--soda) 8%, transparent); }
+  .more { padding: 12px 16px; text-align: center; }
+
+  .state { padding: 40px 16px; text-align: center; color: var(--muted); }
+  .state.error { color: var(--warn); }
+  .hidden { display: none !important; }
+
+  @media (max-width: 640px) {
+    .ledger th, .ledger td { padding: 8px 12px; }
+    .ledger td .n { font-size: 20px; }
+    h1 { font-size: 22px; }
+  }
+</style>
 </head>
 <body>
-  <h1>SForm Dashboard</h1>
-  <div id="status">กำลังโหลด...</div>
-  <div id="out"></div>
+<div class="wrap">
 
-  <script>
-    const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPyLMSIrxnFjvqpImPdWv6SB3FnQZRZoH2sOrc5p3HzIE3DJrBYFXZvUbeF-o-WCDbhw/exec';
+  <header class="top">
+    <div>
+      <h1>SForm Dashboard</h1>
+      <p class="sub">สรุปข้อมูล Soda และ Water แยกตามตัวแทนจำหน่าย</p>
+    </div>
+    <div class="top-actions">
+      <span id="status" role="status">กำลังโหลด...</span>
+      <button class="btn" id="refresh" type="button">โหลดข้อมูลใหม่</button>
+    </div>
+  </header>
 
-    fetch(PROXY_URL)
-      .then(r => r.json())
-      .then(data => {
-        const rows = Array.isArray(data) ? data : (data.data || data.items || []);
-        document.getElementById('status').textContent = `ได้ข้อมูล ${rows.length} รายการ`;
-        if (!rows.length) {
-          document.getElementById('out').textContent = JSON.stringify(data, null, 2);
-          return;
-        }
-        const cols = Object.keys(rows[0]);
-        document.getElementById('out').innerHTML =
-          '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>' +
-          rows.slice(0, 50).map(r => '<tr>' + cols.map(c => `<td>${r[c] ?? ''}</td>`).join('') + '</tr>').join('') +
-          '</tbody></table>';
-      })
-      .catch(err => {
-        document.getElementById('status').textContent = 'โหลดไม่สำเร็จ: ' + err;
-      });
-  </script>
+  <div id="state" class="state">กำลังโหลดข้อมูล...</div>
+
+  <main id="main" class="hidden">
+    <section class="loadbar" aria-label="ช่วงข้อมูลที่โหลด">
+      <div><strong id="loaded-label"></strong><span class="cnt" id="loaded-count"></span></div>
+      <div class="loadbtns">
+        <button class="btn ghost" id="load-prev" type="button">โหลดเดือนก่อนหน้า</button>
+        <button class="btn ghost" id="load-all" type="button">โหลดทั้งหมด</button>
+      </div>
+    </section>
+    <div class="hint hidden" id="hint">
+      <span id="hint-text"></span>
+      <button class="btn" id="load-hint" type="button">โหลดข้อมูลตั้งแต่วันที่เลือก</button>
+    </div>
+
+    <section class="filters" aria-label="ตัวกรอง">
+      <div><label for="f-from">วันที่เริ่มต้น</label><input type="date" id="f-from"></div>
+      <div><label for="f-to">วันที่สิ้นสุด</label><input type="date" id="f-to"></div>
+      <div><label for="f-plant">Plant</label><select id="f-plant"></select></div>
+      <div><label for="f-district">เขต</label><select id="f-district"></select></div>
+      <div><label for="f-group">กลุ่มการขาย</label><select id="f-group"></select></div>
+      <div><label for="f-q">ค้นหา (ชื่อ / รหัส / ทะเบียน)</label><input type="search" id="f-q" placeholder="พิมพ์เพื่อค้นหา"></div>
+      <div><button class="btn ghost" id="clear" type="button">ล้างตัวกรอง</button></div>
+    </section>
+
+    <div id="empty" class="state hidden">ไม่พบข้อมูลตามตัวกรอง หรือยังไม่มีข้อมูลในช่วงที่โหลด ลองกด "ล้างตัวกรอง" หรือ "โหลดเดือนก่อนหน้า"</div>
+
+    <div id="content">
+      <section class="ledger" aria-label="สรุปยอดรวม">
+        <div class="ledger-head">
+          <strong>ยอดรวมตามตัวกรอง</strong>
+          <span id="ledger-meta"></span>
+        </div>
+        <table>
+          <thead>
+            <tr><th scope="col"></th><th scope="col" class="soda">Soda</th><th scope="col" class="water">Water</th></tr>
+          </thead>
+          <tbody id="ledger-body"></tbody>
+        </table>
+      </section>
+
+      <section class="charts">
+        <div class="panel">
+          <h2>ปริมาณ (Qty) รายวัน</h2>
+          <div class="chartbox"><canvas id="c-trend"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Break แยกตามเขต</h2>
+          <div class="chartbox" id="district-box"><canvas id="c-district"></canvas></div>
+        </div>
+      </section>
+
+      <section class="panel tablepanel">
+        <div class="bar">
+          <h2>รายการทั้งหมด <span id="row-count" style="color:var(--muted);font-weight:400"></span></h2>
+          <button class="btn" id="export" type="button">Export Excel (ตามตัวกรอง)</button>
+        </div>
+        <div class="scroll"><table class="data" id="tbl"></table></div>
+        <div class="more hidden" id="more-wrap"><button class="btn ghost" id="more" type="button">แสดงเพิ่ม</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ============ ตั้งค่า ============ */
+// วาง Web app URL ของ Apps Script (ที่ลงท้ายด้วย /exec) ตรงนี้
+const PROXY_URL = 'ใส่ Web app URL (/exec) ตรงนี้';
+
+/* ============ ตัวช่วย ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString('en-US');
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let ALL = [], VIEW = [], charts = {};
+let sortKey = 'date', sortDir = -1, shown = 100;
+let loadedFrom = '';   // วันที่เริ่มต้นของข้อมูลที่โหลดไว้ ('' = โหลดทั้งหมด)
+
+/* แปลงแต่ละ record ให้เป็นรูปแบบเรียบๆ (ถ้า field ไหนไม่มี จะเป็นค่าว่าง/0) */
+function norm(r) {
+  const a = r.agentcode || {};
+  return {
+    date: String(r.date || '').slice(0, 10),
+    plant: r.Plant || a.Plant || '',
+    agent: a.agent || '',
+    name: a.name || '',
+    district: a.district || '',
+    group: a.group || a.Sales_Group || '',
+    car: a.Car_Register || '',
+    dept: a.department || '',
+    iso: r.iso || '',
+    checker: (r.checker && r.checker.Name) || '',
+    qc: (r.qc && r.qc.Name) || '',
+    sodaQty: +r.soda_qty || 0,
+    sodaSpare: +r.soda_spare || 0,
+    sodaBreak: +r.soda_break || 0,
+    sodaDiff: +r.soda_diff_brand || 0,
+    sodaTotal: +r.soda_total || 0,
+    waterQty: +r.water_qty || 0,
+    waterSpare: +r.water_spare || 0,
+    waterBreak: +r.water_break || 0,
+    waterDiff: +r.water_diff_brand || 0,
+    waterTotal: +r.water_total || 0,
+    version: r.version ?? '',
+    createBy: r.createByName || '',
+    createDate: String(r.createDate || '').slice(0, 16).replace('T', ' ')
+  };
+}
+
+/* ============ โหลดข้อมูล ============ */
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (s, n) => { const [y, m, d] = s.split('-').map(Number); return ymd(new Date(y, m - 1, d + n)); };
+const monthStart = s => s.slice(0, 8) + '01';
+const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const thDate = s => { const [y, m, d] = s.split('-').map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
+
+// ขอข้อมูลจาก proxy: from/to เป็น YYYY-MM-DD (ไม่ใส่ = ทั้งหมด)
+async function fetchRows(from, to) {
+  if (!PROXY_URL.startsWith('https://')) throw new Error('ยังไม่ได้ใส่ PROXY_URL ในไฟล์ index.html (บรรทัดใต้ "ตั้งค่า")');
+  const p = new URLSearchParams();
+  if (from) p.set('from', from);
+  if (to) p.set('to', to);
+  const qs = p.toString();
+  const res = await fetch(PROXY_URL + (qs ? (PROXY_URL.includes('?') ? '&' : '?') + qs : ''));
+  const data = await res.json();
+  if (data && data.error) throw new Error(data.error);
+  const rows = Array.isArray(data) ? data : (data.data || data.items || data.rows || []);
+  return rows.map(norm);
+}
+
+function setBusy(b) {
+  ['#refresh', '#load-prev', '#load-all', '#load-hint', '#export'].forEach(s => { $(s).disabled = b; });
+  if (b) $('#status').textContent = 'กำลังโหลด...';
+}
+function showError(err) {
+  if (!ALL.length && $('#main').classList.contains('hidden')) {
+    $('#state').className = 'state error';
+    $('#state').textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + err.message;
+  }
+  $('#status').textContent = 'โหลดไม่สำเร็จ: ' + err.message;
+}
+function afterLoad() {
+  $('#state').classList.add('hidden');
+  $('#main').classList.remove('hidden');
+  initFilters();
+  apply();
+  $('#status').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
+}
+
+// โหลดใหม่ทั้งชุดตั้งแต่วันที่ from เป็นต้นไป ('' = ทั้งหมด)
+async function loadFrom(from) {
+  setBusy(true);
+  try { ALL = await fetchRows(from); loadedFrom = from; afterLoad(); }
+  catch (err) { showError(err); }
+  finally { setBusy(false); }
+}
+// โหลดเพิ่มย้อนหลัง แล้วต่อกับข้อมูลที่มีอยู่
+async function loadMore(from, to) {
+  setBusy(true);
+  try { ALL = ALL.concat(await fetchRows(from, to)); loadedFrom = from; afterLoad(); }
+  catch (err) { showError(err); }
+  finally { setBusy(false); }
+}
+function loadPrev() {
+  if (!loadedFrom) return;
+  const to = addDays(loadedFrom, -1);
+  return loadMore(monthStart(to), to);
+}
+
+function updateLoadBar() {
+  $('#loaded-label').textContent = loadedFrom ? `โหลดข้อมูลตั้งแต่ ${thDate(loadedFrom)} เป็นต้นไป` : 'โหลดข้อมูลทั้งหมดแล้ว';
+  $('#loaded-count').textContent = ` (${fmt(ALL.length)} ฟอร์ม)`;
+  $('#load-prev').classList.toggle('hidden', !loadedFrom);
+  $('#load-all').classList.toggle('hidden', !loadedFrom);
+  const from = $('#f-from').value;
+  const older = loadedFrom && from && from < loadedFrom;
+  $('#hint').classList.toggle('hidden', !older);
+  if (older) $('#hint-text').textContent = `วันที่เริ่มต้นที่เลือก (${thDate(from)}) เก่ากว่าข้อมูลที่โหลดไว้ ผลลัพธ์อาจไม่ครบ`;
+}
+
+/* ============ ตัวกรอง ============ */
+function fillSelect(id, values, allLabel) {
+  const el = $(id), cur = el.value;
+  const opts = [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  el.innerHTML = `<option value="">${allLabel}</option>` + opts.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  if (opts.includes(cur)) el.value = cur;
+}
+function initFilters() {
+  fillSelect('#f-plant', ALL.map(r => r.plant), 'ทั้งหมด');
+  fillSelect('#f-district', ALL.map(r => r.district), 'ทั้งหมด');
+  fillSelect('#f-group', ALL.map(r => r.group), 'ทั้งหมด');
+}
+function apply() {
+  const from = $('#f-from').value, to = $('#f-to').value;
+  const plant = $('#f-plant').value, district = $('#f-district').value, group = $('#f-group').value;
+  const q = $('#f-q').value.trim().toLowerCase();
+  VIEW = ALL.filter(r =>
+    (!from || r.date >= from) && (!to || r.date <= to) &&
+    (!plant || r.plant === plant) && (!district || r.district === district) && (!group || r.group === group) &&
+    (!q || (r.name + ' ' + r.agent + ' ' + r.car).toLowerCase().includes(q))
+  );
+  shown = 100;
+  render();
+  updateLoadBar();
+}
+['#f-from', '#f-to', '#f-plant', '#f-district', '#f-group'].forEach(s => $(s).addEventListener('change', apply));
+$('#f-q').addEventListener('input', apply);
+$('#clear').addEventListener('click', () => {
+  ['#f-from', '#f-to', '#f-plant', '#f-district', '#f-group', '#f-q'].forEach(s => $(s).value = '');
+  apply();
+});
+$('#refresh').addEventListener('click', () => loadFrom(loadedFrom));
+$('#load-prev').addEventListener('click', loadPrev);
+$('#load-all').addEventListener('click', () => {
+  if (confirm('การโหลดข้อมูลทั้งหมดอาจใช้เวลานานและหน้าเว็บอาจช้าลง ต้องการโหลดต่อไหม?')) loadFrom('');
+});
+$('#load-hint').addEventListener('click', () => {
+  const from = $('#f-from').value;
+  if (from && loadedFrom && from < loadedFrom) loadMore(from, addDays(loadedFrom, -1));
+});
+$('#export').addEventListener('click', exportExcel);
+$('#more').addEventListener('click', () => { shown += 200; renderTable(); });
+
+/* ============ แสดงผล ============ */
+const sum = (arr, k) => arr.reduce((t, r) => t + r[k], 0);
+
+function render() {
+  const has = VIEW.length > 0;
+  $('#empty').classList.toggle('hidden', has);
+  $('#content').classList.toggle('hidden', !has);
+  if (!has) return;
+  renderLedger();
+  renderCharts();
+  renderTable();
+}
+
+function renderLedger() {
+  const agents = new Set(VIEW.map(r => r.agent || r.name)).size;
+  $('#ledger-meta').textContent = `${fmt(VIEW.length)} ฟอร์ม จาก ${fmt(agents)} ตัวแทน`;
+  const rows = [
+    ['Qty', 'Qty'], ['Spare', 'Spare'], ['Break', 'Break'], ['Diff brand', 'Diff'], ['Total', 'Total']
+  ].map(([label, k]) => {
+    const s = sum(VIEW, 'soda' + k), w = sum(VIEW, 'water' + k), max = Math.max(s, w, 1);
+    return `<tr><th scope="row">${label}</th>
+      <td class="soda"><div class="n">${fmt(s)}</div><div class="bar" style="width:${(s / max * 100).toFixed(1)}%"></div></td>
+      <td class="water"><div class="n">${fmt(w)}</div><div class="bar" style="width:${(w / max * 100).toFixed(1)}%"></div></td></tr>`;
+  });
+  const pct = (b, q) => q ? (b / q * 100).toFixed(2) + '%' : '-';
+  rows.push(`<tr class="rate"><th scope="row">Break ÷ Qty</th>
+    <td class="soda"><div class="n">${pct(sum(VIEW, 'sodaBreak'), sum(VIEW, 'sodaQty'))}</div></td>
+    <td class="water"><div class="n">${pct(sum(VIEW, 'waterBreak'), sum(VIEW, 'waterQty'))}</div></td></tr>`);
+  $('#ledger-body').innerHTML = rows.join('');
+}
+
+function upsert(id, config) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart($('#' + id), config);
+}
+const wrap = s => { const i = s.indexOf(' ('); return i > 0 ? [s.slice(0, i), s.slice(i + 1)] : s; };
+
+function renderCharts() {
+  const ink = css('--muted'), line = css('--line'), soda = css('--soda'), water = css('--water');
+  const base = {
+    responsive: true, maintainAspectRatio: false,
+    animation: reduceMotion ? false : { duration: 250 },
+    plugins: { legend: { position: 'bottom', labels: { color: ink, boxWidth: 12 } } }
+  };
+
+  // ปริมาณรายวัน
+  const byDate = {};
+  VIEW.forEach(r => {
+    const d = r.date || 'ไม่ระบุ';
+    (byDate[d] = byDate[d] || { s: 0, w: 0 });
+    byDate[d].s += r.sodaQty; byDate[d].w += r.waterQty;
+  });
+  const days = Object.keys(byDate).sort();
+  upsert('c-trend', {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [
+        { label: 'Soda Qty', data: days.map(d => byDate[d].s), backgroundColor: soda },
+        { label: 'Water Qty', data: days.map(d => byDate[d].w), backgroundColor: water }
+      ]
+    },
+    options: { ...base, scales: { x: { ticks: { color: ink }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: ink }, grid: { color: line } } } }
+  });
+
+  // Break แยกตามเขต (สูงสุด 12 เขต)
+  const byDist = {};
+  VIEW.forEach(r => {
+    const d = r.district || 'ไม่ระบุ';
+    (byDist[d] = byDist[d] || { s: 0, w: 0 });
+    byDist[d].s += r.sodaBreak; byDist[d].w += r.waterBreak;
+  });
+  const dists = Object.keys(byDist).sort((a, b) => (byDist[b].s + byDist[b].w) - (byDist[a].s + byDist[a].w)).slice(0, 12);
+  $('#district-box').style.height = Math.max(300, dists.length * 46 + 70) + 'px';
+  upsert('c-district', {
+    type: 'bar',
+    data: {
+      labels: dists.map(wrap),
+      datasets: [
+        { label: 'Soda Break', data: dists.map(d => byDist[d].s), backgroundColor: soda },
+        { label: 'Water Break', data: dists.map(d => byDist[d].w), backgroundColor: water }
+      ]
+    },
+    options: { ...base, indexAxis: 'y', scales: { x: { stacked: true, beginAtZero: true, ticks: { color: ink }, grid: { color: line } }, y: { stacked: true, ticks: { color: ink }, grid: { display: false } } } }
+  });
+}
+
+const COLS = [
+  { k: 'date', l: 'วันที่' }, { k: 'plant', l: 'Plant' }, { k: 'agent', l: 'รหัสตัวแทน' },
+  { k: 'name', l: 'ชื่อตัวแทน' }, { k: 'district', l: 'เขต' }, { k: 'car', l: 'ทะเบียนรถ' },
+  { k: 'sodaQty', l: 'Soda Qty', n: 1 }, { k: 'sodaBreak', l: 'Soda Break', n: 1 },
+  { k: 'waterQty', l: 'Water Qty', n: 1 }, { k: 'waterBreak', l: 'Water Break', n: 1 },
+  { k: 'checker', l: 'Checker' }, { k: 'createBy', l: 'ผู้บันทึก' }, { k: 'createDate', l: 'บันทึกเมื่อ' }
+];
+
+function sortedRows() {
+  return [...VIEW].sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'th')) * sortDir;
+  });
+}
+
+function renderTable() {
+  const rows = sortedRows();
+  const part = rows.slice(0, shown);
+  $('#row-count').textContent = `(แสดง ${fmt(part.length)} จาก ${fmt(rows.length)})`;
+  $('#tbl').innerHTML =
+    '<thead><tr>' + COLS.map(c =>
+      `<th data-k="${c.k}" class="${c.n ? 'num' : ''}" tabindex="0" ${c.k === sortKey ? `aria-sort="${sortDir > 0 ? 'ascending' : 'descending'}"` : ''}>${c.l}</th>`
+    ).join('') + '</tr></thead><tbody>' +
+    part.map(r => '<tr>' + COLS.map(c => `<td class="${c.n ? 'num' : ''}">${c.n ? fmt(r[c.k]) : esc(r[c.k])}</td>`).join('') + '</tr>').join('') +
+    '</tbody>';
+  $('#more-wrap').classList.toggle('hidden', rows.length <= shown);
+}
+$('#tbl').addEventListener('click', e => {
+  const th = e.target.closest('th[data-k]'); if (!th) return;
+  const k = th.dataset.k;
+  sortDir = (k === sortKey) ? -sortDir : 1; sortKey = k;
+  renderTable();
+});
+$('#tbl').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); }
+});
+
+/* ============ Export Excel ============ */
+function exportExcel() {
+  if (!VIEW.length) { alert('ไม่มีข้อมูลให้ Export ตามตัวกรองปัจจุบัน'); return; }
+  if (typeof XLSX === 'undefined') { alert('โหลดไลบรารี Excel ไม่สำเร็จ ลองรีเฟรชหน้าแล้วกดใหม่'); return; }
+  const rows = sortedRows().map(r => ({
+    'วันที่': r.date, 'Plant': r.plant, 'รหัสตัวแทน': r.agent, 'ชื่อตัวแทน': r.name,
+    'เขต': r.district, 'กลุ่มการขาย': r.group, 'ฝ่าย': r.dept, 'ทะเบียนรถ': r.car, 'ISO': r.iso,
+    'Soda Qty': r.sodaQty, 'Soda Spare': r.sodaSpare, 'Soda Break': r.sodaBreak, 'Soda Diff brand': r.sodaDiff, 'Soda Total': r.sodaTotal,
+    'Water Qty': r.waterQty, 'Water Spare': r.waterSpare, 'Water Break': r.waterBreak, 'Water Diff brand': r.waterDiff, 'Water Total': r.waterTotal,
+    'Checker': r.checker, 'QC': r.qc, 'Version': r.version, 'ผู้บันทึก': r.createBy, 'บันทึกเมื่อ': r.createDate
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const sample = rows.slice(0, 200);
+  ws['!cols'] = Object.keys(rows[0]).map(k => ({
+    wch: Math.min(40, Math.max(k.length + 2, ...sample.map(r => String(r[k] ?? '').length + 2)))
+  }));
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+  const dates = VIEW.map(r => r.date).filter(Boolean).sort();
+  const summary = [
+    ['รายการ', 'Soda', 'Water'],
+    ['Qty', sum(VIEW, 'sodaQty'), sum(VIEW, 'waterQty')],
+    ['Spare', sum(VIEW, 'sodaSpare'), sum(VIEW, 'waterSpare')],
+    ['Break', sum(VIEW, 'sodaBreak'), sum(VIEW, 'waterBreak')],
+    ['Diff brand', sum(VIEW, 'sodaDiff'), sum(VIEW, 'waterDiff')],
+    ['Total', sum(VIEW, 'sodaTotal'), sum(VIEW, 'waterTotal')],
+    [],
+    ['จำนวนฟอร์ม', VIEW.length],
+    ['ช่วงวันที่ในไฟล์', dates.length ? `${dates[0]} ถึง ${dates[dates.length - 1]}` : '-'],
+    ['ส่งออกเมื่อ', new Date().toLocaleString('th-TH')]
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(summary);
+  ws2['!cols'] = [{ wch: 18 }, { wch: 24 }, { wch: 12 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ข้อมูล');
+  XLSX.utils.book_append_sheet(wb, ws2, 'สรุป');
+  XLSX.writeFile(wb, `SForm_${ymd(new Date())}.xlsx`);
+}
+
+// สลับ dark/light ตามเครื่อง → วาดกราฟใหม่ให้สีตรง
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (VIEW.length) renderCharts(); });
+
+// เริ่มต้น: โหลดเฉพาะเดือนปัจจุบัน
+loadFrom(monthStart(ymd(new Date())));
+</script>
 </body>
 </html>
